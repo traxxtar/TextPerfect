@@ -1,0 +1,7 @@
+# Build output (recreated by build_app.sh)
+.build/
+.swiftpm/
+TextPerfect.app/
+
+# macOS
+.DS_Store
