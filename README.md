@@ -30,6 +30,15 @@ TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or th
 - **Undo**: up to 200 steps.
 - **Search** forward and backward, ignoring upper and lower case.
 - **Replace**, either all at once or one match at a time with a Yes/No prompt for each. One Undo reverses the whole Replace.
+- **Spell check** (**Opt-F1**), in the LetterPerfect style. TextPerfect works through the document from the top using the macOS spelling dictionary. At each unknown word, the screen splits, with lettered suggestions in the bottom half:
+  - Press a suggestion's letter to use that word.
+  - **1 Skip Once** skips this occurrence.
+  - **2 Skip** skips the word for the rest of the check.
+  - **3 Add** adds the word to your macOS dictionary.
+  - **4 Edit** lets you type the correction yourself.
+  - **Esc** stops the check.
+
+  One Undo reverses every correction from that check.
 - **Insert Date**, which types today's date, e.g. "November 2, 2026".
 - **Word-wrapped text** at 10 characters per inch between your margins. Tab moves to the next 0.5" stop.
 
@@ -53,21 +62,21 @@ TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or th
 
 | Key | Action | Opt + key | Shift + key |
 |---|---|---|---|
-| **F1** | Undo | | |
+| **F1** | Undo | Spell check | |
 | **F2** | Search forward | Replace | Search backward |
 | **F3** | Help (key reference) | Reveal Codes on/off | |
 | **F4** | Indent paragraph | Block on/off | |
 | **F5** | Open file | | Insert date |
 | **F6** | Bold on/off | | Center line on/off |
 | **F7** | Exit | | Print |
-| **F8** | Underline on/off | | Margins |
+| **F8** | Underline on/off | Italic on/off | Margins |
 | **F9** | Show splash screen | | |
 | **F10** | Save | | Retrieve file at cursor |
 | **F11** | Reveal Codes on/off | | |
 | **F12** | Block on/off | | |
 | **Insert** | Typeover on/off | | |
 
-Italic has no function key of its own. Use **Cmd-I** or **Format › Italic**.
+**Ctrl-F2**, LetterPerfect's own Spell key, also starts a spell check if you turn off the macOS shortcut that uses it (*System Settings › Keyboard › Keyboard Shortcuts › Keyboard › Move focus to the menu bar*).
 
 > **Tip:** On most Mac keyboards, F1–F12 control brightness, volume and so on by default. Either hold **fn** with the function key, or turn on *System Settings › Keyboard › Keyboard Shortcuts › Function Keys › Use F1, F2, etc. keys as standard function keys*. Mac keyboards without an **Insert** key can switch Typeover on and off from **Format › Typeover On/Off** (**Cmd-T**).
 
@@ -100,6 +109,7 @@ Italic has no function key of its own. Use **Cmd-I** or **Format › Italic**.
 | Cmd-Z | Undo | Cmd-T | Typeover on/off |
 | Cmd-X / C / V | Cut / Copy / Paste | Cmd-F | Find |
 | Cmd-A | Select all | Cmd-G | Find next |
+| Cmd-; | Check spelling | | |
 | Cmd-Q | Quit | Opt-Cmd-F | Replace |
 
 **Edit › Insert Date** and **Format › Indent** are also in the menus.

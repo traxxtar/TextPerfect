@@ -43,13 +43,21 @@ struct Snap {
 }
 
 struct Prompt {
-    enum Kind { case text, yesNo }
+    enum Kind { case text, yesNo, choice }
     var kind: Kind
     var label: String
     var text: String
     var defaultYes: Bool
     var done: (String?) -> Void
     var fresh: Bool = false   // first typed character replaces the suggested text
+    var choices = ""          // .choice: the keys that answer it, in lower case
+}
+
+/// A spell check in progress: what the checker suggests for the word on screen.
+struct SpellCheck {
+    var tag: Int                     // NSSpellChecker document tag; holds this check's Skip list
+    var suggestions: [String] = []
+    var corrections = 0
 }
 
 final class ScreenView: NSView, NSMenuItemValidation {
@@ -74,6 +82,9 @@ final class ScreenView: NSView, NSMenuItemValidation {
     var scrollAccum: CGFloat = 0
     var goalCol: Int? = nil
     var revealCodes = false
+    var spell: SpellCheck? = nil
+    /// Reveal Codes and Spell each take the bottom half of the screen.
+    var splitScreen: Bool { revealCodes || spell != nil }
     var showHelp = false
     var message = ""
     var lastSearch = ""
@@ -820,6 +831,10 @@ final class ScreenView: NSView, NSMenuItemValidation {
     }
 
     func requestExit() {
+        if spell != nil {
+            prompt = nil
+            finishSpell()
+        }
         confirmDiscard { [weak self] in
             self?.ask("Exit TextPerfect? No (Yes)", kind: .yesNo, defaultYes: false) { [weak self] ans in
                 guard ans == "y" else { return }
@@ -975,6 +990,110 @@ final class ScreenView: NSView, NSMenuItemValidation {
         needsDisplay = true
     }
 
+    // MARK: Spell
+
+    /// Opt-F1, LetterPerfect's Spell: works through the document from the top, stopping at each
+    /// word macOS's spelling dictionary doesn't know.
+    func startSpell() {
+        anchor = nil
+        blockMode = false
+        spell = SpellCheck(tag: NSSpellChecker.uniqueSpellDocumentTag())
+        nextMisspelling(from: 0)
+    }
+
+    /// The document as the spell checker reads it, without formatting codes (so a code inside a
+    /// word doesn't split it), and the document index behind each of its UTF-16 units.
+    func spellText() -> (String, [Int]) {
+        var text = ""
+        var map: [Int] = []
+        for (i, c) in chars.enumerated() where !Code.isCode(c) {
+            let ch: Character = c == Code.hardPage ? "\n" : c
+            text.append(ch)
+            map += Array(repeating: i, count: ch.utf16.count)
+        }
+        return (text, map)
+    }
+
+    /// Highlights the next unknown word at or after `start`, lists suggestions in the bottom half
+    /// of the screen, and asks what to do: Skip Once, Skip (for the rest of this check), Add (to
+    /// the macOS dictionary), Edit, or a suggestion's letter to use it. Esc stops.
+    func nextMisspelling(from start: Int) {
+        guard var sp = spell else { return }
+        let (text, map) = spellText()
+        let offset = map.firstIndex(where: { $0 >= start }) ?? map.count
+        let checker = NSSpellChecker.shared
+        let r = checker.checkSpelling(of: text, startingAt: offset, language: nil, wrap: false,
+                                      inSpellDocumentWithTag: sp.tag, wordCount: nil)
+        guard r.location != NSNotFound, r.length > 0, r.location + r.length <= map.count else {
+            finishSpell()
+            return
+        }
+        let a = map[r.location]
+        let b = map[r.location + r.length - 1] + 1
+        let word = (text as NSString).substring(with: r)
+        sp.suggestions = Array((checker.guesses(forWordRange: r, in: text, language: nil,
+                                                inSpellDocumentWithTag: sp.tag) ?? []).prefix(24))
+        spell = sp
+        anchor = a
+        cursor = b
+        let letters = Array("abcdefghijklmnopqrstuvwx".prefix(sp.suggestions.count))
+        ask("Not Found: 1 Skip Once; 2 Skip; 3 Add; 4 Edit", kind: .choice,
+            choices: "1234" + String(letters)) { [weak self] ans in
+            guard let self = self else { return }
+            guard let ans = ans else { self.finishSpell(); return }
+            switch ans {
+            case "1":
+                self.nextMisspelling(from: b)
+            case "2":
+                checker.ignoreWord(word, inSpellDocumentWithTag: sp.tag)
+                self.nextMisspelling(from: b)
+            case "3":
+                checker.learnWord(word)
+                self.nextMisspelling(from: b)
+            case "4":
+                self.ask("Replace with:", kind: .text, text: word) { [weak self] typed in
+                    guard let self = self else { return }
+                    if let typed = typed, !typed.isEmpty {
+                        self.spellReplace(a..<b, with: typed)
+                    } else {
+                        self.nextMisspelling(from: a)   // Esc: back to the same word
+                    }
+                }
+            default:
+                if let k = letters.firstIndex(of: Character(ans)) {
+                    self.spellReplace(a..<b, with: sp.suggestions[k])
+                }
+            }
+        }
+    }
+
+    /// Puts `rep` in place of the word, keeping any formatting codes that were inside it, and
+    /// carries on after it. The first correction takes the undo snapshot, so F1 undoes them all.
+    func spellReplace(_ r: Range<Int>, with rep: String) {
+        guard var sp = spell else { return }
+        if sp.corrections == 0 {
+            lastWasTyping = false
+            pushUndo()
+        }
+        let new = sanitize(rep, allowCodes: false) + chars[r].filter { Code.isCode($0) }
+        chars.replaceSubrange(r, with: new)
+        sp.corrections += 1
+        spell = sp
+        modified = true
+        nextMisspelling(from: r.lowerBound + new.count)
+    }
+
+    func finishSpell() {
+        guard let sp = spell else { return }
+        NSSpellChecker.shared.closeSpellDocument(withTag: sp.tag)
+        spell = nil
+        anchor = nil
+        lastWasTyping = false
+        let n = sp.corrections
+        message = n == 0 ? "Spell check done" : "Spell check done: \(n) correction" + (n == 1 ? "" : "s")
+        needsDisplay = true
+    }
+
     // MARK: Margins
 
     func marginText(_ v: Double) -> String {
@@ -1019,9 +1138,9 @@ final class ScreenView: NSView, NSMenuItemValidation {
     // MARK: Prompts
 
     func ask(_ label: String, kind: Prompt.Kind, text: String = "", defaultYes: Bool = false,
-             fresh: Bool = false, done: @escaping (String?) -> Void) {
+             fresh: Bool = false, choices: String = "", done: @escaping (String?) -> Void) {
         prompt = Prompt(kind: kind, label: label, text: text, defaultYes: defaultYes,
-                        done: done, fresh: fresh)
+                        done: done, fresh: fresh, choices: choices)
         needsDisplay = true
     }
 
@@ -1049,6 +1168,13 @@ final class ScreenView: NSView, NSMenuItemValidation {
                 finishPrompt("n")
             } else if kc == KC.ret || kc == KC.enter {
                 finishPrompt(p.defaultYes ? "y" : "n")
+            }
+        case .choice:
+            let ch = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            if kc == KC.escape || kc == KC.f1 {
+                finishPrompt(nil)
+            } else if ch.count == 1 && p.choices.contains(ch) {
+                finishPrompt(ch)
             }
         case .text:
             if kc == KC.escape || kc == KC.f1 {
@@ -1102,9 +1228,10 @@ final class ScreenView: NSView, NSMenuItemValidation {
 
         switch kc {
         case KC.f1:
-            undo(nil)
+            if opt { startSpell() } else { undo(nil) }
         case KC.f2:
-            if opt { startReplace() } else { startSearch(forward: !shift) }
+            // Ctrl-F2 is LetterPerfect's Spell key, but macOS keeps it unless its shortcut is turned off.
+            if ctrl { startSpell() } else if opt { startReplace() } else { startSearch(forward: !shift) }
         case KC.f3:
             if opt { revealCodes.toggle() } else { showHelp = true }
         case KC.f4:
@@ -1116,7 +1243,13 @@ final class ScreenView: NSView, NSMenuItemValidation {
         case KC.f7:
             if shift { printDocument() } else { requestExit() }
         case KC.f8:
-            if shift { startMarginPrompt() } else { toggleAttribute(on: Code.undOn, off: Code.undOff) }
+            if shift {
+                startMarginPrompt()
+            } else if opt {
+                toggleAttribute(on: Code.italOn, off: Code.italOff)
+            } else {
+                toggleAttribute(on: Code.undOn, off: Code.undOff)
+            }
         case KC.f9:
             splashHeld = true
         case KC.f10:
@@ -1216,7 +1349,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
         let ch = bounds.height / 25
         let row = Int(point.y / ch)
         let col = Int(point.x / cw)
-        let textRows = (revealCodes ? 11 : 24) - topMargin
+        let textRows = (splitScreen ? 11 : 24) - topMargin
         let textRow = row - topMargin
         guard textRow >= 0 && textRow < textRows else { return nil }
         let lines = normalLines()
@@ -1274,7 +1407,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
         if rows == 0 { return }
         scrollAccum -= CGFloat(rows)
         let screenRows = pagination(normalLines()).rows.count
-        let textRows = (revealCodes ? 11 : 24) - topMargin
+        let textRows = (splitScreen ? 11 : 24) - topMargin
         let maxTop = max(0, screenRows - textRows)
         let newTop = min(max(0, topRow - rows), maxTop)
         if newTop == topRow { return }
@@ -1365,6 +1498,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
     @objc func menuPrint(_ sender: Any?) { printDocument() }
     @objc func menuFind(_ sender: Any?) { startSearch(forward: true) }
     @objc func menuReplace(_ sender: Any?) { startReplace() }
+    @objc func menuSpell(_ sender: Any?) { startSpell() }
     @objc func menuIndent(_ sender: Any?) { indentParagraph(); needsDisplay = true }
     @objc func menuDate(_ sender: Any?) { insertDate(); needsDisplay = true }
     @objc func menuFindNext(_ sender: Any?) {
@@ -1409,9 +1543,10 @@ final class ScreenView: NSView, NSMenuItemValidation {
         " TextPerfect key reference                      (press any key to return)",
         "",
         " F1        Undo                         Shift-F6    Center line on/off",
-        " F2        Search forward               F7          Exit",
-        " Shift-F2  Search backward              Shift-F7    Print",
-        " Opt-F2    Replace                      F8          Underline on/off",
+        " Opt-F1    Spell check                  F7          Exit",
+        " F2        Search forward               Shift-F7    Print",
+        " Shift-F2  Search backward              F8          Underline on/off",
+        " Opt-F2    Replace                      Opt-F8      Italic on/off",
         " F3        Help                         Shift-F8    Margins",
         " Opt-F3    Reveal Codes                 F9          Splash screen",
         " F4        Indent paragraph             F10         Save",
@@ -1429,7 +1564,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
         "",
         " Menus: Cmd-N new, Cmd-O open, Cmd-W close, Cmd-S save, Cmd-P print, Cmd-F find,",
         " Cmd-G find next, Cmd-B bold, Cmd-I italic, Cmd-U underline, Cmd-E center,",
-        " Cmd-R reveal codes, Opt-Cmd-F replace."
+        " Cmd-R reveal codes, Opt-Cmd-F replace, Cmd-; spell check."
     ]
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1514,7 +1649,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
 
         let lines = normalLines()
         let pag = pagination(lines)
-        let textRows = (revealCodes ? 11 : 24) - topMargin
+        let textRows = (splitScreen ? 11 : 24) - topMargin
         let curLine = lineIndex(of: cursor, in: lines, count: chars.count)
         let curRow = pag.rowOfLine[curLine]
         if followCursor {
@@ -1587,8 +1722,20 @@ final class ScreenView: NSView, NSMenuItemValidation {
             }
         }
 
-        // Reveal Codes pane
-        if revealCodes {
+        // Spell pane: lettered suggestions for the highlighted word, three columns of eight
+        if let sp = spell {
+            for c in 0..<cols { put(11, c, "-", Palette.blue, bg: Palette.grey) }
+            if sp.suggestions.isEmpty {
+                putString(13, leftMargin, "(no suggestions)", Palette.grey)
+            }
+            for (n, word) in sp.suggestions.enumerated() {
+                let r = 13 + n % 8
+                let c = leftMargin + (n / 8) * 25
+                let letter = String(Array("ABCDEFGHIJKLMNOPQRSTUVWX")[n])
+                putString(r, c, letter + ".", Palette.white)
+                putString(r, c + 3, String(word.prefix(21)), Palette.grey)
+            }
+        } else if revealCodes {      // Reveal Codes pane
             for c in 0..<cols {
                 var s = "-"
                 if c == leftMargin {

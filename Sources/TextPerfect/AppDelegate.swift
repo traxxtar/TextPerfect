@@ -131,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         addItem(edit, "Find\u{2026}", "menuFind:", "f", target: screen)
         addItem(edit, "Find Next", "menuFindNext:", "g", target: screen)
         addItem(edit, "Replace\u{2026}", "menuReplace:", "f", mods: [.command, .option], target: screen)
+        addItem(edit, "Check Spelling", "menuSpell:", ";", target: screen)
         edit.addItem(NSMenuItem.separator())
         addItem(edit, "Insert Date", "menuDate:", "", target: screen)
 
