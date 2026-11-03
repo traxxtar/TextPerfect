@@ -8,7 +8,7 @@ LetterPerfect was the lighter sibling of WordPerfect 5.1. It kept the parts most
 
 ### Why I made it
 
-My wife used to work at WordPerfect. Back then I had a Toshiba T1000 laptop with a blue LCD screen, a single 3.5" floppy drive, no hard disk, and a little memory set aside as a RAM disk. I wanted LetterPerfect on it, so I stripped out every file it didn't need and compressed the EXE files with an EXE compression utility. The whole thing fit on one floppy, and it worked. Yay me!
+My wife used to work at WordPerfect. Back then I had a Toshiba T1000 laptop with a blue LCD screen, a single 3.5" floppy drive, no hard disk, and a little memory set aside as a RAM disk. I wanted LetterPerfect on it, so I stripped out every file it didn't need and compressed the EXE files with PKLITE. The whole thing fit on one floppy, and it worked. Yay me!
 
 TextPerfect is that little blue-screen word processor again, this time on my Mac.
 
