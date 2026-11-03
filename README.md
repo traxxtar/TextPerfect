@@ -6,7 +6,13 @@
 
 LetterPerfect was the lighter sibling of WordPerfect 5.1. It kept the parts most people actually used: the clean blue screen, the function-key commands, Reveal Codes and the one-line status bar. It left out the rest. TextPerfect brings that experience to the Mac as a native app, with an 80 × 25 character screen, the classic blue and grey colours, and the familiar keys. It adds the conveniences you'd expect today, like the mouse, the clipboard, drag and drop, and printing through macOS.
 
-*Built with Claude Code as an AI pair programmer. The idea, testing and nostalgia are mine; my wife used to work at WordPerfect.*
+### Why I made it
+
+My wife used to work at WordPerfect. Back then I had a Toshiba T1000 laptop with a blue LCD screen, a single 3.5" floppy drive, no hard disk, and a little memory set aside as a RAM disk. I wanted LetterPerfect on it, so I stripped out every file it didn't need and compressed the EXE files with an EXE compression utility. The whole thing fit on one floppy, and it worked. Yay me!
+
+TextPerfect is that little blue-screen word processor again, this time on my Mac.
+
+*Built with Claude Code as an AI pair programmer. The idea, testing and nostalgia are mine.*
 
 ![TextPerfect editing a letter, with bold, underline and italic text on the classic blue screen](docs/screenshots/main.png)
 
