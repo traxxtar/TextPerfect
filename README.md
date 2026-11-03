@@ -6,6 +6,12 @@
 
 LetterPerfect was the lighter sibling of WordPerfect 5.1. It kept the parts most people actually used: the clean blue screen, the function-key commands, Reveal Codes and the one-line status bar. It left out the rest. TextPerfect brings that experience to the Mac as a native app, with an 80 × 25 character screen, the classic blue and grey colours, and the familiar keys. It adds the conveniences you'd expect today, like the mouse, the clipboard, drag and drop, and printing through macOS.
 
+## Download
+
+Get **TextPerfect-1.1.zip** from the [Releases page](https://github.com/traxxtar/TextPerfect/releases/latest). Unzip it and drag **TextPerfect** into your Applications folder.
+
+It runs on any Mac with macOS 12 or later, Apple Silicon or Intel. It's signed with a Developer ID and notarized by Apple, so it opens normally with no security warning.
+
 TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or the current owners of WordPerfect and LetterPerfect. It's a fan-made homage.
 
 ## Features
@@ -38,7 +44,7 @@ TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or th
   - **4 Edit** lets you type the correction yourself.
   - **Esc** stops the check.
 
-  One Undo reverses every correction from that check.
+  When the check finishes, the status line shows the number of corrections and the document's word count, e.g. *Spell check done: 3 corrections, 1,204 words*. One Undo reverses every correction from that check.
 - **Insert Date**, which types today's date, e.g. "November 2, 2026".
 - **Word-wrapped text** at 10 characters per inch between your margins. Tab moves to the next 0.5" stop.
 
@@ -127,8 +133,11 @@ You need macOS 12 or later and Xcode or the Xcode Command Line Tools.
 ```sh
 ./build_app.sh            # builds TextPerfect.app in this folder
 ./build_app.sh install    # also copies it into ~/Applications
+./build_app.sh release    # also notarizes it and makes TextPerfect-<version>.zip
 open TextPerfect.app
 ```
+
+The app is built universal (Apple Silicon and Intel). The version number is set at the top of `build_app.sh`. The script signs with the Developer ID certificate named there if it's in the keychain, and otherwise signs ad hoc, which only runs on the Mac that built it. `release` needs a notarytool keychain profile named `TextPerfect-notary`. You make it once with `xcrun notarytool store-credentials`.
 
 The screen font is **JetBrains Mono NL** if you have it installed. Otherwise TextPerfect uses Menlo.
 

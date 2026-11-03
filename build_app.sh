@@ -2,16 +2,28 @@
 # Builds TextPerfect.app next to this script. Needs Xcode or the Command Line Tools.
 # Usage:  cd ~/TextPerfect && ./build_app.sh && open TextPerfect.app
 #         ./build_app.sh install    also copies the app into ~/Applications
+#         ./build_app.sh release    also notarizes it and makes TextPerfect-<version>.zip
 set -e
 cd "$(dirname "$0")"
 
-swift build -c release
+VERSION="1.1"
+BUILD="2"
+
+# Developer ID certificate to sign with (by SHA-1, since the keychain holds two with the same
+# name). On a Mac without it, the app is signed ad hoc and runs only on that Mac.
+SIGN_ID="CBA88C35B561BCF5B29EAA83013E98E065F17897"
+# notarytool keychain profile, made once per Mac with `xcrun notarytool store-credentials`.
+NOTARY_PROFILE="TextPerfect-notary"
+
+# Universal: runs on Apple Silicon and Intel Macs.
+swift build -c release --arch arm64 --arch x86_64
+BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/TextPerfect"
 
 APP="TextPerfect.app"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/TextPerfect "$APP/Contents/MacOS/TextPerfect"
+cp "$BIN" "$APP/Contents/MacOS/TextPerfect"
 # Icon: AppIcon.icns and AppIcon_1024.png are made from Icon.png by make_icon.swift.
 # Rebuild them whenever Icon.png is newer, so swapping in new artwork is just a rebuild.
 if [ -f Icon.png ] && { [ ! -f AppIcon.icns ] || [ Icon.png -nt AppIcon.icns ]; }; then
@@ -35,8 +47,8 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
     <key>CFBundleExecutable</key><string>TextPerfect</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+    <key>CFBundleVersion</key><string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key><string>12.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -72,17 +84,38 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </dict>
 </plist>
 EOF
+sed -i '' -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" "$APP/Contents/Info.plist"
 
 # Finder info or resource forks on the bundle (e.g. an icon pasted in Get Info) break the signature.
 xattr -cr "$APP"
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || echo "warning: codesign failed"
+if security find-identity -v -p codesigning | grep -q "$SIGN_ID"; then
+    # Hardened runtime and a secure timestamp are what notarization requires.
+    codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP"
+    echo "Signed with Developer ID"
+else
+    codesign --force --sign - "$APP" >/dev/null 2>&1 || echo "warning: codesign failed"
+    echo "Signed ad hoc (Developer ID certificate not on this Mac)"
+fi
 
 # The bundle was just deleted and recreated at the same path; make Finder and the Dock
 # pick up its icon instead of showing a stale or generic one.
 touch "$APP"
 "$LSREGISTER" -f "$APP"
 
-echo "Built $APP"
+echo "Built $APP $VERSION ($(lipo -archs "$APP/Contents/MacOS/TextPerfect"))"
+
+if [ "$1" = "release" ]; then
+    ZIP="TextPerfect-$VERSION.zip"
+    rm -f "$ZIP"
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+    # Staple the ticket into the app so it opens without a network check, then zip it again.
+    xcrun stapler staple "$APP"
+    rm -f "$ZIP"
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    spctl --assess --type execute -v "$APP"
+    echo "Made $ZIP"
+fi
 
 if [ "$1" = "install" ]; then
     mkdir -p "$HOME/Applications"

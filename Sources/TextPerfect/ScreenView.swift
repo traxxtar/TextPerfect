@@ -1089,8 +1089,14 @@ final class ScreenView: NSView, NSMenuItemValidation {
         spell = nil
         anchor = nil
         lastWasTyping = false
+        // Ends with the document's word count, as LetterPerfect's Spell did.
         let n = sp.corrections
-        message = n == 0 ? "Spell check done" : "Spell check done: \(n) correction" + (n == 1 ? "" : "s")
+        let words = NSSpellChecker.shared.countWords(in: spellText().0, language: nil)
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        let count = (f.string(from: NSNumber(value: max(0, words))) ?? "\(words)") + (words == 1 ? " word" : " words")
+        let fixes = n == 0 ? "" : "\(n) correction" + (n == 1 ? "" : "s") + ", "
+        message = "Spell check done: " + fixes + count
         needsDisplay = true
     }
 

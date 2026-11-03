@@ -5,3 +5,6 @@ TextPerfect.app/
 
 # macOS
 .DS_Store
+
+# Release zips (attached to GitHub releases instead)
+TextPerfect-*.zip
