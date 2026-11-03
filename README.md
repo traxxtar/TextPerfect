@@ -1,10 +1,12 @@
 # TextPerfect
 
-![TextPerfect icon](AppIcon_1024.png)
+<img src="AppIcon_1024.png" alt="TextPerfect icon" width="128">
 
 **TextPerfect is a tribute to LetterPerfect, the word processor for DOS that WordPerfect Corporation released in 1990.**
 
 LetterPerfect was the lighter sibling of WordPerfect 5.1. It kept the parts most people actually used: the clean blue screen, the function-key commands, Reveal Codes and the one-line status bar. It left out the rest. TextPerfect brings that experience to the Mac as a native app, with an 80 × 25 character screen, the classic blue and grey colours, and the familiar keys. It adds the conveniences you'd expect today, like the mouse, the clipboard, drag and drop, and printing through macOS.
+
+![TextPerfect editing a letter, with bold, underline and italic text on the classic blue screen](docs/screenshots/main.png)
 
 ## Download
 
@@ -13,6 +15,15 @@ Get **TextPerfect-1.1.zip** from the [Releases page](https://github.com/traxxtar
 It runs on any Mac with macOS 12 or later, Apple Silicon or Intel. It's signed with a Developer ID and notarized by Apple, so it opens normally with no security warning.
 
 TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or the current owners of WordPerfect and LetterPerfect. It's a fan-made homage.
+
+## Screenshots
+
+| Reveal Codes | Spell check |
+|---|---|
+| ![Reveal Codes splits the screen to show the hidden formatting codes](docs/screenshots/reveal-codes.png) | ![Spell check highlights an unknown word and lists lettered suggestions](docs/screenshots/spell-check.png) |
+| **Reveal Codes** (Opt-F3 or F11) shows every hidden formatting code. | **Spell check** (Opt-F1) offers lettered suggestions, LetterPerfect-style. |
+
+<p align="center"><img src="docs/screenshots/splash.png" alt="TextPerfect launch splash screen" width="420"><br><em>The launch splash (F9 brings it back)</em></p>
 
 ## Features
 
