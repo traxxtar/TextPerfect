@@ -15,9 +15,11 @@ SIGN_ID="CBA88C35B561BCF5B29EAA83013E98E065F17897"
 # notarytool keychain profile, made once per Mac with `xcrun notarytool store-credentials`.
 NOTARY_PROFILE="TextPerfect-notary"
 
-# Universal: runs on Apple Silicon and Intel Macs.
-swift build -c release --arch arm64 --arch x86_64
-BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/TextPerfect"
+# Universal: runs on Apple Silicon and Intel Macs. Built outside OneDrive: syncing the build
+# folder makes dsymutil time out writing the .dSYM bundle ("cannot create bundle").
+SCRATCH="$HOME/Library/Caches/TextPerfect-build"
+swift build -c release --arch arm64 --arch x86_64 --scratch-path "$SCRATCH"
+BIN="$(swift build -c release --arch arm64 --arch x86_64 --scratch-path "$SCRATCH" --show-bin-path)/TextPerfect"
 
 APP="TextPerfect.app"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
