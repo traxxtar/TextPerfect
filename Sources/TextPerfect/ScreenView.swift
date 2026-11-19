@@ -86,6 +86,9 @@ final class ScreenView: NSView, NSMenuItemValidation {
     /// Reveal Codes and Spell each take the bottom half of the screen.
     var splitScreen: Bool { revealCodes || spell != nil }
     var showHelp = false
+    /// The backstory page, shown over the editor on the very first launch until F7 dismisses it.
+    /// F9 brings it back, behind the splash, just as at first launch.
+    var showBackstory = !UserDefaults.standard.bool(forKey: "tp.backstorySeen")
     var message = ""
     var lastSearch = ""
     var lastReplace = ""
@@ -104,8 +107,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
     var splashStart: Date? = nil     // set on the first frame drawn, so the window is on screen for all of the fade
     var splashTimer: Timer?          // non-nil while the launch splash is fading
     var splashShown = false
-    var splashHeld = false           // F9: the splash at full strength until a key or click
-    var splashShowing: Bool { splashHeld || splashTimer != nil }
+    var splashShowing: Bool { splashTimer != nil }
 
     let leftMargin = 5       // screen column where text starts (5 characters in)
     let topMargin = 1        // blank rows above the text
@@ -143,20 +145,33 @@ final class ScreenView: NSView, NSMenuItemValidation {
         registerForDraggedTypes([.fileURL])
         if window != nil && !splashShown {
             splashShown = true
-            let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-                guard let self = self else { return }
-                if self.splashAlpha() <= 0 { self.endSplash() }
-                self.needsDisplay = true
-            }
-            RunLoop.main.add(t, forMode: .common)   // keep fading even while the window is being dragged
-            splashTimer = t
+            startSplash()
         }
         updateTitle()
     }
 
-    /// 1 at launch, easing to 0 over `splashDuration`; a steady 1 while F9 holds it up.
+    /// Fades the splash out over the screen, at launch and again on F9.
+    func startSplash() {
+        splashTimer?.invalidate()
+        splashStart = nil
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if self.splashAlpha() <= 0 { self.endSplash() }
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(t, forMode: .common)   // keep fading even while the window is being dragged
+        splashTimer = t
+    }
+
+    /// F9: the first-launch sequence again, the splash fading out to reveal the backstory.
+    func replayIntro() {
+        showBackstory = true
+        window?.invalidateCursorRects(for: self)
+        startSplash()
+    }
+
+    /// 1 at the start, easing to 0 over `splashDuration`.
     func splashAlpha() -> CGFloat {
-        if splashHeld { return 1 }
         guard splashTimer != nil else { return 0 }
         guard let start = splashStart else { return 1 }
         let t = min(1, max(0, Date().timeIntervalSince(start) / splashDuration))
@@ -166,7 +181,6 @@ final class ScreenView: NSView, NSMenuItemValidation {
     func endSplash() {
         splashTimer?.invalidate()
         splashTimer = nil
-        splashHeld = false
         needsDisplay = true
     }
 
@@ -1211,6 +1225,11 @@ final class ScreenView: NSView, NSMenuItemValidation {
             endSplash()
             return
         }
+        if showBackstory {          // only F7 (WordPerfect's Exit) leaves it, so a stray key can't skip it
+            let mods = event.modifierFlags.intersection([.shift, .option, .control, .command])
+            if Int(event.keyCode) == KC.f7 && mods.isEmpty { dismissBackstory() }
+            return
+        }
         if showHelp {
             showHelp = false
             needsDisplay = true
@@ -1257,7 +1276,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
                 toggleAttribute(on: Code.undOn, off: Code.undOff)
             }
         case KC.f9:
-            splashHeld = true
+            replayIntro()
         case KC.f10:
             if shift { retrieveFile() } else { save() }
         case KC.f11:
@@ -1372,6 +1391,12 @@ final class ScreenView: NSView, NSMenuItemValidation {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         if splashShowing { endSplash(); return }
+        if showBackstory {
+            if let url = backstoryLink(at: convert(event.locationInWindow, from: nil)) {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
         if showHelp { showHelp = false; needsDisplay = true; return }
         if prompt != nil { return }
         let p = convert(event.locationInWindow, from: nil)
@@ -1386,7 +1411,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if showHelp || prompt != nil { return }
+        if showHelp || showBackstory || prompt != nil { return }
         let p = convert(event.locationInWindow, from: nil)
         if let i = indexAt(p) {
             cursor = i
@@ -1401,7 +1426,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        if showHelp || prompt != nil { return }
+        if showHelp || showBackstory || prompt != nil { return }
         var dy = event.scrollingDeltaY
         if event.hasPreciseScrollingDeltas {
             dy /= bounds.height / 25      // trackpad / Magic Mouse: points -> rows
@@ -1439,12 +1464,13 @@ final class ScreenView: NSView, NSMenuItemValidation {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if prompt != nil || showHelp || splashShowing || droppedFile(sender) == nil { return [] }
+        if prompt != nil || showHelp || showBackstory || splashShowing || droppedFile(sender) == nil { return [] }
         return NSEvent.modifierFlags.contains(.option) ? .copy : .generic
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard prompt == nil, !showHelp, !splashShowing, let url = droppedFile(sender) else { return false }
+        guard prompt == nil, !showHelp, !showBackstory, !splashShowing,
+              let url = droppedFile(sender) else { return false }
         // Come to the front, so typing (or answering the Save prompt) goes here, not back to Finder.
         if #available(macOS 14.0, *) {
             NSApp.activate()
@@ -1490,7 +1516,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
     /// every menu item aimed at it is disabled, except Paste into a text prompt. A disabled item's
     /// Cmd-key falls through to keyDown, so on the help screen or splash it simply dismisses them.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if showHelp || splashShowing { return false }
+        if showHelp || showBackstory || splashShowing { return false }
         if let p = prompt { return item.action == #selector(paste(_:)) && p.kind == .text }
         return true
     }
@@ -1554,7 +1580,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
         " Shift-F2  Search backward              F8          Underline on/off",
         " Opt-F2    Replace                      Opt-F8      Italic on/off",
         " F3        Help                         Shift-F8    Margins",
-        " Opt-F3    Reveal Codes                 F9          Splash screen",
+        " Opt-F3    Reveal Codes                 F9          Splash and backstory",
         " F4        Indent paragraph             F10         Save",
         " Opt-F4    Block on/off                 Shift-F10   Retrieve file at cursor",
         " F5        Open file                    F11         Reveal Codes",
@@ -1572,6 +1598,71 @@ final class ScreenView: NSView, NSMenuItemValidation {
         " Cmd-G find next, Cmd-B bold, Cmd-I italic, Cmd-U underline, Cmd-E center,",
         " Cmd-R reveal codes, Opt-Cmd-F replace, Cmd-; spell check."
     ]
+
+    // MARK: Backstory
+
+    /// The first-launch page: a little history, from Wikipedia. Drawn from screen column
+    /// `backstoryCol`, one string per row; the title is row 0 and the status line is row 24.
+    static let backstoryCol = 5
+    static let backstoryText: [String] = [
+        "TextPerfect - The backstory",
+        "",
+        "TextPerfect is a little tribute to LetterPerfect and WordPerfect, the",
+        "word processors that ruled the blue DOS screen of the 1980s and '90s.",
+        "",
+        "WordPerfect began in 1979, when Bruce Bastian, a graduate student at",
+        "Brigham Young University, and Alan Ashton, his computer science",
+        "professor, wrote a word processor for a Data General minicomputer",
+        "owned by the city of Orem, Utah. It went on sale as SSI*WP in 1980 and",
+        "reached the IBM PC in 1982. WordPerfect 4.2 (1986) overtook WordStar,",
+        "and WordPerfect 5.1 (1989) became the standard on DOS, with a function",
+        "key for everything and Reveal Codes to show the hidden formatting.",
+        "Novell bought WordPerfect in 1994, and Corel bought it in 1996.",
+        "",
+        "In 1990 came LetterPerfect, a lighter, cheaper WordPerfect 5.1 for",
+        "laptops, students and home users. It left out tables, labels, sorting,",
+        "equations and styles, and kept the parts most people used. That's the",
+        "spirit of TextPerfect: the blue screen, the function keys, and nothing",
+        "you don't need.",
+        "",
+        "Read more on Wikipedia (click a link to open it):",
+        "  WordPerfect     https://en.wikipedia.org/wiki/WordPerfect",
+        "  LetterPerfect   https://en.wikipedia.org/wiki/LetterPerfect",
+    ]
+    static let backstoryStatus = "Press F7 when you've finished reading. F9 brings this page back any time."
+
+    /// Where each link sits on the backstory page: its row, first column and length.
+    static let backstoryLinks: [(row: Int, col: Int, url: URL)] = backstoryText.enumerated().compactMap { n, line in
+        guard let r = line.range(of: "https://") else { return nil }
+        let text = String(line[r.lowerBound...])
+        guard let url = URL(string: text) else { return nil }
+        return (n, backstoryCol + line.distance(from: line.startIndex, to: r.lowerBound), url)
+    }
+
+    func backstoryLinkRect(_ link: (row: Int, col: Int, url: URL)) -> NSRect {
+        let cw = bounds.width / 80
+        let ch = bounds.height / 25
+        return NSRect(x: CGFloat(link.col) * cw, y: CGFloat(link.row) * ch,
+                      width: CGFloat(link.url.absoluteString.count) * cw, height: ch)
+    }
+
+    func backstoryLink(at point: NSPoint) -> URL? {
+        return ScreenView.backstoryLinks.first { backstoryLinkRect($0).contains(point) }?.url
+    }
+
+    override func resetCursorRects() {
+        guard showBackstory else { return }
+        for link in ScreenView.backstoryLinks {
+            addCursorRect(backstoryLinkRect(link), cursor: .pointingHand)
+        }
+    }
+
+    func dismissBackstory() {
+        showBackstory = false
+        UserDefaults.standard.set(true, forKey: "tp.backstorySeen")
+        window?.invalidateCursorRects(for: self)
+        needsDisplay = true
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         let cols = 80
@@ -1645,6 +1736,20 @@ final class ScreenView: NSView, NSMenuItemValidation {
             cg.restoreGState()
         }
         defer { drawSplash() }
+
+        if showBackstory {
+            let col = ScreenView.backstoryCol
+            for (n, line) in ScreenView.backstoryText.enumerated() {
+                putString(n, col, line, n == 0 ? Palette.white : Palette.grey)
+            }
+            for link in ScreenView.backstoryLinks {
+                for (i, c) in link.url.absoluteString.enumerated() {
+                    put(link.row, link.col + i, String(c), Palette.white, under: true)
+                }
+            }
+            putString(24, 0, ScreenView.backstoryStatus, Palette.white)
+            return
+        }
 
         if showHelp {
             for (n, line) in ScreenView.helpText.enumerated() {
@@ -1816,9 +1921,7 @@ final class ScreenView: NSView, NSMenuItemValidation {
             if left.isEmpty {
                 if blockMode { left = "Block on" } else if typeover { left = "Typeover" }
             }
-            if left.isEmpty {
-                putString(24, 0, "F3 = Help", Palette.grey)   // a quiet hint whenever there's nothing to report
-            } else {
+            if !left.isEmpty {
                 putString(24, 0, left, Palette.white)
             }
 

@@ -31,7 +31,7 @@ TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or th
 | ![Reveal Codes splits the screen to show the hidden formatting codes](docs/screenshots/reveal-codes.png) | ![Spell check highlights an unknown word and lists lettered suggestions](docs/screenshots/spell-check.png) |
 | **Reveal Codes** (Opt-F3 or F11) shows every hidden formatting code. | **Spell check** (Opt-F1) offers lettered suggestions, LetterPerfect-style. |
 
-<p align="center"><img src="docs/screenshots/splash.png" alt="TextPerfect launch splash screen" width="420"><br><em>The launch splash (F9 brings it back)</em></p>
+<p align="center"><img src="docs/screenshots/splash.png" alt="TextPerfect launch splash screen" width="420"><br><em>The launch splash (F9 brings it back, with the backstory)</em></p>
 
 ## Features
 
@@ -39,7 +39,9 @@ TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or th
 - An 80-column, 25-row text screen in white and grey on blue, scaled to fill the window at any size.
 - A WordPerfect-style status line: `Doc 1 Pg 1 Ln 1" Pos 1"`. Your line and position are in inches, and the `Pos` reading turns bold, underlined or italic to match the text at the cursor.
 - Page breaks drawn across the screen: a dashed line for an automatic (soft) break and a double line for a hard page break.
-- A launch splash screen that fades out after a few seconds. Press **F9** to bring it back.
+- A launch splash screen that fades out after a few seconds.
+- On the very first launch, the splash fades to *TextPerfect - The backstory*, a page with a short history of WordPerfect and LetterPerfect and links to Wikipedia. Press **F7** to close it. After that, TextPerfect starts straight in the editor.
+- Press **F9** any time to see the splash and the backstory again.
 - A built-in key reference. Press **F3**.
 
 ### Text formatting
@@ -95,7 +97,7 @@ TextPerfect isn't affiliated with, or endorsed by, WordPerfect Corporation or th
 | **F6** | Bold on/off | | Center line on/off |
 | **F7** | Exit | | Print |
 | **F8** | Underline on/off | Italic on/off | Margins |
-| **F9** | Show splash screen | | |
+| **F9** | Splash screen and backstory | | |
 | **F10** | Save | | Retrieve file at cursor |
 | **F11** | Reveal Codes on/off | | |
 | **F12** | Block on/off | | |
